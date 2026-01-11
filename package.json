@@ -8,7 +8,8 @@
     "ccstatusline": "dist/ccstatusline.js"
   },
   "files": [
-    "dist/"
+    "dist/",
+    "scripts/extract-session-key.py"
   ],
   "scripts": {
     "start": "bun run src/ccstatusline.ts",
@@ -19,7 +20,8 @@
     "lint": "bun tsc --noEmit; eslint . --config eslint.config.js --max-warnings=999999 --fix",
     "test": "bun vitest",
     "docs": "typedoc",
-    "docs:clean": "rm -rf docs"
+    "docs:clean": "rm -rf docs",
+    "extract-session": "python3 scripts/extract-session-key.py"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",

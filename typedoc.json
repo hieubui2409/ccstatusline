@@ -28,7 +28,7 @@
     "Document",
     "Project",
     "Module",
-    "Namespace", 
+    "Namespace",
     "Enum",
     "EnumMember",
     "Class",

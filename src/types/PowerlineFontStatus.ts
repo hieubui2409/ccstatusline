@@ -1,4 +1,4 @@
 export interface PowerlineFontStatus {
-    installed: boolean;
-    checkedSymbol?: string;
+  installed: boolean;
+  checkedSymbol?: string;
 }

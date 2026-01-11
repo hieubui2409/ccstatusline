@@ -3,7 +3,7 @@
   "[markdown]": {
     "files.trimTrailingWhitespace": false
   },
-  
+
   // Keep trimming enabled for other file types
   "[typescript]": {
     "files.trimTrailingWhitespace": true
