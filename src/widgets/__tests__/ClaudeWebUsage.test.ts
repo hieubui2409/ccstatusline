@@ -335,7 +335,7 @@ describe("ClaudeWebUsageWidget", () => {
       const keybinds = widget.getCustomKeybinds();
 
       expect(keybinds).toHaveLength(1);
-      expect(keybinds[0]?.key).toBe("m");
+      expect(keybinds[0]?.key).toBe("o");
       expect(keybinds[0]?.action).toBe("toggle-mode");
     });
 

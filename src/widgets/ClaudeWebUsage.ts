@@ -125,7 +125,7 @@ export class ClaudeWebUsageWidget implements Widget {
   }
 
   getCustomKeybinds(): CustomKeybind[] {
-    return [{ key: "m", label: "(m)ode toggle", action: "toggle-mode" }];
+    return [{ key: "o", label: "m(o)de", action: "toggle-mode" }];
   }
 
   supportsRawValue(): boolean {
