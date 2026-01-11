@@ -7,14 +7,13 @@ import type {
     DailyReport
 } from '../types/CcusageData';
 
-// Cache state - separate TTLs for success vs failure
+// Cache with single TTL - on failure, extend existing cache
 let dailyCache: { data: DailyReport | null; timestamp: number } | null = null;
 let blockCache: { data: ActiveBlockData | null; timestamp: number } | null
   = null;
-const CACHE_SUCCESS_MS = 120_000; // 2 min - cost data doesn't change fast
-const CACHE_FAILURE_MS = 300_000; // 5 min - don't retry often if ccusage is slow
+const CACHE_TTL_MS = 120_000; // 2 min
 
-// Fast timeout for fail-fast behavior - show placeholder instead of blocking
+// Fast timeout for fail-fast behavior
 const FAST_TIMEOUT_MS = 2_000;
 
 function runCcusageFast(args: string): string | null {
@@ -25,28 +24,30 @@ function runCcusageFast(args: string): string | null {
             timeout: FAST_TIMEOUT_MS
         });
     } catch {
-    // Fail fast - don't try npx fallback, just return null
         return null;
     }
 }
 
-function isCacheValid(timestamp: number, isSuccess: boolean): boolean {
-    const ttl = isSuccess ? CACHE_SUCCESS_MS : CACHE_FAILURE_MS;
-    return Date.now() - timestamp < ttl;
+function isCacheValid(timestamp: number): boolean {
+    return Date.now() - timestamp < CACHE_TTL_MS;
 }
 
 export function getDailyReport(): DailyReport | null {
-    if (
-        dailyCache
-        && isCacheValid(dailyCache.timestamp, dailyCache.data !== null)
-    ) {
+    if (dailyCache && isCacheValid(dailyCache.timestamp)) {
         return dailyCache.data;
     }
 
     const output = runCcusageFast(
         'daily --json --since $(date -d \'30 days ago\' +%Y%m%d)'
     );
+
     if (!output) {
+    // Failure: extend existing cache TTL, keep old data
+        if (dailyCache) {
+            dailyCache.timestamp = Date.now();
+            return dailyCache.data;
+        }
+        // No previous data - cache null
         dailyCache = { data: null, timestamp: Date.now() };
         return null;
     }
@@ -56,6 +57,11 @@ export function getDailyReport(): DailyReport | null {
         dailyCache = { data, timestamp: Date.now() };
         return data;
     } catch {
+    // Parse failure: extend existing cache
+        if (dailyCache) {
+            dailyCache.timestamp = Date.now();
+            return dailyCache.data;
+        }
         dailyCache = { data: null, timestamp: Date.now() };
         return null;
     }
@@ -91,15 +97,18 @@ export function getCostAggregates(): CostAggregates | null {
 }
 
 export function getActiveBlock(): ActiveBlockData | null {
-    if (
-        blockCache
-        && isCacheValid(blockCache.timestamp, blockCache.data !== null)
-    ) {
+    if (blockCache && isCacheValid(blockCache.timestamp)) {
         return blockCache.data;
     }
 
     const output = runCcusageFast('blocks --active --json');
+
     if (!output) {
+    // Failure: extend existing cache TTL, keep old data
+        if (blockCache) {
+            blockCache.timestamp = Date.now();
+            return blockCache.data;
+        }
         blockCache = { data: null, timestamp: Date.now() };
         return null;
     }
@@ -125,6 +134,11 @@ export function getActiveBlock(): ActiveBlockData | null {
         blockCache = { data: blockData, timestamp: Date.now() };
         return blockData;
     } catch {
+    // Parse failure: extend existing cache
+        if (blockCache) {
+            blockCache.timestamp = Date.now();
+            return blockCache.data;
+        }
         blockCache = { data: null, timestamp: Date.now() };
         return null;
     }
@@ -137,5 +151,5 @@ export function clearCache(): void {
 
 // Legacy export for backward compatibility
 export function isCcusageAvailable(): boolean {
-    return true; // Always return true, let the fast timeout handle availability
+    return true;
 }

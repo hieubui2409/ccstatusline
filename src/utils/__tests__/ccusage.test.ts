@@ -62,15 +62,6 @@ describe('ccusage utilities', () => {
             expect(result).toEqual(dailyData);
         });
 
-        it('should return null when ccusage command fails (fail-fast)', () => {
-            mockedExecSync.mockImplementation(() => {
-                throw new Error('timeout');
-            });
-
-            const result = getDailyReport();
-            expect(result).toBeNull();
-        });
-
         it('should return null when JSON parse fails', () => {
             mockedExecSync.mockReturnValueOnce('invalid json {');
 
@@ -119,25 +110,39 @@ describe('ccusage utilities', () => {
             expect(mockedExecSync.mock.calls.length).toBe(2);
         });
 
-        it('should cache failure for 300 seconds', () => {
-            vi.useFakeTimers();
+        it('should extend cache and return old data on failure', () => {
+            const dailyData = {
+                daily: [{ date: '2026-01-11', totalCost: 5.5 }],
+                totals: { totalCost: 5.5 }
+            };
 
+            // First call succeeds
+            mockedExecSync.mockReturnValueOnce(JSON.stringify(dailyData));
+            const first = getDailyReport();
+            expect(first).toEqual(dailyData);
+
+            // Expire cache
+            vi.useFakeTimers();
+            vi.advanceTimersByTime(121_000);
+
+            // Second call fails - should return old data
             mockedExecSync.mockImplementation(() => {
                 throw new Error('timeout');
             });
 
-            getDailyReport();
-            mockedExecSync.mockClear();
-
-            vi.advanceTimersByTime(299_000);
-            getDailyReport();
-            expect(mockedExecSync).not.toHaveBeenCalled();
-
-            vi.advanceTimersByTime(2_000);
-            getDailyReport();
-            expect(mockedExecSync).toHaveBeenCalled();
+            const second = getDailyReport();
+            expect(second).toEqual(dailyData); // Returns stale data
 
             vi.useRealTimers();
+        });
+
+        it('should return null on first failure (no previous data)', () => {
+            mockedExecSync.mockImplementation(() => {
+                throw new Error('timeout');
+            });
+
+            const result = getDailyReport();
+            expect(result).toBeNull();
         });
     });
 
