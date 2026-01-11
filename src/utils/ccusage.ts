@@ -7,11 +7,12 @@ import type {
     DailyReport
 } from '../types/CcusageData';
 
-// Cache state - longer TTL since cost data changes slowly
+// Cache state - separate TTLs for success vs failure
 let dailyCache: { data: DailyReport | null; timestamp: number } | null = null;
 let blockCache: { data: ActiveBlockData | null; timestamp: number } | null
   = null;
-const CACHE_DURATION_MS = 60_000; // 60 seconds - ccusage is slow, cache longer
+const CACHE_SUCCESS_MS = 120_000; // 2 min - cost data doesn't change fast
+const CACHE_FAILURE_MS = 300_000; // 5 min - don't retry often if ccusage is slow
 
 // Fast timeout for fail-fast behavior - show placeholder instead of blocking
 const FAST_TIMEOUT_MS = 2_000;
@@ -29,12 +30,16 @@ function runCcusageFast(args: string): string | null {
     }
 }
 
-function isCacheValid(timestamp: number): boolean {
-    return Date.now() - timestamp < CACHE_DURATION_MS;
+function isCacheValid(timestamp: number, isSuccess: boolean): boolean {
+    const ttl = isSuccess ? CACHE_SUCCESS_MS : CACHE_FAILURE_MS;
+    return Date.now() - timestamp < ttl;
 }
 
 export function getDailyReport(): DailyReport | null {
-    if (dailyCache && isCacheValid(dailyCache.timestamp)) {
+    if (
+        dailyCache
+        && isCacheValid(dailyCache.timestamp, dailyCache.data !== null)
+    ) {
         return dailyCache.data;
     }
 
@@ -86,7 +91,10 @@ export function getCostAggregates(): CostAggregates | null {
 }
 
 export function getActiveBlock(): ActiveBlockData | null {
-    if (blockCache && isCacheValid(blockCache.timestamp)) {
+    if (
+        blockCache
+        && isCacheValid(blockCache.timestamp, blockCache.data !== null)
+    ) {
         return blockCache.data;
     }
 

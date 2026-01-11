@@ -78,7 +78,7 @@ describe('ccusage utilities', () => {
             expect(result).toBeNull();
         });
 
-        it('should cache the result for 60 seconds', () => {
+        it('should cache success for 120 seconds', () => {
             const dailyData = {
                 daily: [],
                 totals: {
@@ -99,7 +99,7 @@ describe('ccusage utilities', () => {
             expect(mockedExecSync).not.toHaveBeenCalled();
         });
 
-        it('should refetch after cache expires (60s)', () => {
+        it('should refetch after success cache expires (120s)', () => {
             vi.useFakeTimers();
 
             mockedExecSync.mockReturnValueOnce(
@@ -107,7 +107,7 @@ describe('ccusage utilities', () => {
             );
             getDailyReport();
 
-            vi.advanceTimersByTime(61_000);
+            vi.advanceTimersByTime(121_000);
 
             mockedExecSync.mockReturnValueOnce(
                 JSON.stringify({ daily: [], totals: {} })
@@ -117,6 +117,27 @@ describe('ccusage utilities', () => {
             vi.useRealTimers();
 
             expect(mockedExecSync.mock.calls.length).toBe(2);
+        });
+
+        it('should cache failure for 300 seconds', () => {
+            vi.useFakeTimers();
+
+            mockedExecSync.mockImplementation(() => {
+                throw new Error('timeout');
+            });
+
+            getDailyReport();
+            mockedExecSync.mockClear();
+
+            vi.advanceTimersByTime(299_000);
+            getDailyReport();
+            expect(mockedExecSync).not.toHaveBeenCalled();
+
+            vi.advanceTimersByTime(2_000);
+            getDailyReport();
+            expect(mockedExecSync).toHaveBeenCalled();
+
+            vi.useRealTimers();
         });
     });
 
@@ -283,7 +304,7 @@ describe('ccusage utilities', () => {
             expect(block).toBeNull();
         });
 
-        it('should cache the result for 60 seconds', () => {
+        it('should cache success for 120 seconds', () => {
             const blockData = {
                 blocks: [
                     {
