@@ -1,28 +1,46 @@
-import { execSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import {
+    existsSync,
+    mkdirSync,
+    readFileSync,
+    writeFileSync
+} from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 import type {
     ActiveBlockData,
-    BlocksReport,
     CostAggregates,
     DailyReport
 } from '../types/CcusageData';
 
-// Cache with single TTL - on failure, extend existing cache
-let dailyCache: { data: DailyReport | null; timestamp: number } | null = null;
-let blockCache: { data: ActiveBlockData | null; timestamp: number } | null
-  = null;
+// Disk cache for persistence across invocations
+const CACHE_DIR = join(homedir(), '.cache', 'ccstatusline');
+const DAILY_CACHE_FILE = join(CACHE_DIR, 'ccusage-daily.json');
+const BLOCK_CACHE_FILE = join(CACHE_DIR, 'ccusage-block.json');
 const CACHE_TTL_MS = 120_000; // 2 min
 
-// Fast timeout for fail-fast behavior
-const FAST_TIMEOUT_MS = 2_000;
+// Track if background fetch is already running (via lock file)
+const FETCH_LOCK_FILE = join(CACHE_DIR, 'fetch.lock');
+const LOCK_TTL_MS = 60_000; // 1 min max lock duration
 
-function runCcusageFast(args: string): string | null {
+interface DiskCache<T> {
+    data: T | null;
+    timestamp: number;
+}
+
+function ensureCacheDir(): void {
+    if (!existsSync(CACHE_DIR)) {
+        mkdirSync(CACHE_DIR, { recursive: true });
+    }
+}
+
+function readDiskCache<T>(filePath: string): DiskCache<T> | null {
     try {
-        return execSync(`ccusage ${args}`, {
-            encoding: 'utf-8',
-            stdio: 'pipe',
-            timeout: FAST_TIMEOUT_MS
-        });
+        if (!existsSync(filePath))
+            return null;
+        const content = readFileSync(filePath, 'utf-8');
+        return JSON.parse(content) as DiskCache<T>;
     } catch {
         return null;
     }
@@ -32,39 +50,101 @@ function isCacheValid(timestamp: number): boolean {
     return Date.now() - timestamp < CACHE_TTL_MS;
 }
 
-export function getDailyReport(): DailyReport | null {
-    if (dailyCache && isCacheValid(dailyCache.timestamp)) {
-        return dailyCache.data;
+function isLockValid(): boolean {
+    try {
+        if (!existsSync(FETCH_LOCK_FILE))
+            return false;
+        const content = readFileSync(FETCH_LOCK_FILE, 'utf-8');
+        const timestamp = parseInt(content, 10);
+        return Date.now() - timestamp < LOCK_TTL_MS;
+    } catch {
+        return false;
     }
+}
 
-    const output = runCcusageFast(
-        'daily --json --since $(date -d \'30 days ago\' +%Y%m%d)'
-    );
+function acquireLock(): boolean {
+    if (isLockValid())
+        return false;
+    ensureCacheDir();
+    writeFileSync(FETCH_LOCK_FILE, Date.now().toString(), 'utf-8');
+    return true;
+}
 
-    if (!output) {
-    // Failure: extend existing cache TTL, keep old data
-        if (dailyCache) {
-            dailyCache.timestamp = Date.now();
-            return dailyCache.data;
-        }
-        // No previous data - cache null
-        dailyCache = { data: null, timestamp: Date.now() };
-        return null;
+function spawnBackgroundFetcher(): void {
+    if (!acquireLock())
+        return;
+
+    // Inline script to fetch and cache ccusage data
+    const script = `
+    const { execSync } = require('child_process');
+    const { writeFileSync, unlinkSync } = require('fs');
+    const { join } = require('path');
+    const { homedir } = require('os');
+
+    const CACHE_DIR = join(homedir(), '.cache', 'ccstatusline');
+    const DAILY_FILE = join(CACHE_DIR, 'ccusage-daily.json');
+    const BLOCK_FILE = join(CACHE_DIR, 'ccusage-block.json');
+    const LOCK_FILE = join(CACHE_DIR, 'fetch.lock');
+
+    function writeCache(file, data) {
+      writeFileSync(file, JSON.stringify({ data, timestamp: Date.now() }), 'utf-8');
     }
 
     try {
-        const data = JSON.parse(output) as DailyReport;
-        dailyCache = { data, timestamp: Date.now() };
-        return data;
-    } catch {
-    // Parse failure: extend existing cache
-        if (dailyCache) {
-            dailyCache.timestamp = Date.now();
-            return dailyCache.data;
-        }
-        dailyCache = { data: null, timestamp: Date.now() };
-        return null;
+      // Fetch daily report (no timeout - let it complete)
+      const dailyOutput = execSync(
+        "ccusage daily --json --since $(date -d '30 days ago' +%Y%m%d)",
+        { encoding: 'utf-8', stdio: 'pipe', timeout: 120000 }
+      );
+      const dailyData = JSON.parse(dailyOutput);
+      writeCache(DAILY_FILE, dailyData);
+    } catch {}
+
+    try {
+      // Fetch block data
+      const blockOutput = execSync(
+        'ccusage blocks --active --json',
+        { encoding: 'utf-8', stdio: 'pipe', timeout: 120000 }
+      );
+      const blockData = JSON.parse(blockOutput);
+      const active = blockData.blocks?.find(b => b.isActive);
+      if (active) {
+        writeCache(BLOCK_FILE, {
+          costUSD: active.costUSD,
+          burnRate: active.burnRate,
+          projection: active.projection,
+          startTime: active.startTime,
+          endTime: active.endTime,
+          totalTokens: active.totalTokens
+        });
+      } else {
+        writeCache(BLOCK_FILE, null);
+      }
+    } catch {}
+
+    // Release lock
+    try { unlinkSync(LOCK_FILE); } catch {}
+  `;
+
+    const child = spawn('node', ['-e', script], {
+        detached: true,
+        stdio: 'ignore'
+    });
+    child.unref();
+}
+
+export function getDailyReport(): DailyReport | null {
+    const cache = readDiskCache<DailyReport>(DAILY_CACHE_FILE);
+
+    if (cache && isCacheValid(cache.timestamp)) {
+        return cache.data;
     }
+
+    // Cache expired or missing - trigger background fetch
+    spawnBackgroundFetcher();
+
+    // Return stale data if available
+    return cache?.data ?? null;
 }
 
 export function getCostAggregates(): CostAggregates | null {
@@ -97,56 +177,30 @@ export function getCostAggregates(): CostAggregates | null {
 }
 
 export function getActiveBlock(): ActiveBlockData | null {
-    if (blockCache && isCacheValid(blockCache.timestamp)) {
-        return blockCache.data;
+    const cache = readDiskCache<ActiveBlockData>(BLOCK_CACHE_FILE);
+
+    if (cache && isCacheValid(cache.timestamp)) {
+        return cache.data;
     }
 
-    const output = runCcusageFast('blocks --active --json');
+    // Cache expired or missing - trigger background fetch
+    spawnBackgroundFetcher();
 
-    if (!output) {
-    // Failure: extend existing cache TTL, keep old data
-        if (blockCache) {
-            blockCache.timestamp = Date.now();
-            return blockCache.data;
-        }
-        blockCache = { data: null, timestamp: Date.now() };
-        return null;
-    }
-
-    try {
-        const data = JSON.parse(output) as BlocksReport;
-        const activeBlock = data.blocks.find(b => b.isActive);
-
-        if (!activeBlock) {
-            blockCache = { data: null, timestamp: Date.now() };
-            return null;
-        }
-
-        const blockData: ActiveBlockData = {
-            costUSD: activeBlock.costUSD,
-            burnRate: activeBlock.burnRate,
-            projection: activeBlock.projection,
-            startTime: activeBlock.startTime,
-            endTime: activeBlock.endTime,
-            totalTokens: activeBlock.totalTokens
-        };
-
-        blockCache = { data: blockData, timestamp: Date.now() };
-        return blockData;
-    } catch {
-    // Parse failure: extend existing cache
-        if (blockCache) {
-            blockCache.timestamp = Date.now();
-            return blockCache.data;
-        }
-        blockCache = { data: null, timestamp: Date.now() };
-        return null;
-    }
+    // Return stale data if available
+    return cache?.data ?? null;
 }
 
 export function clearCache(): void {
-    dailyCache = null;
-    blockCache = null;
+    try {
+        if (existsSync(DAILY_CACHE_FILE)) {
+            writeFileSync(DAILY_CACHE_FILE, '', 'utf-8');
+        }
+        if (existsSync(BLOCK_CACHE_FILE)) {
+            writeFileSync(BLOCK_CACHE_FILE, '', 'utf-8');
+        }
+    } catch {
+    // Ignore errors
+    }
 }
 
 // Legacy export for backward compatibility
