@@ -1,4 +1,4 @@
 export interface BlockMetrics {
-  startTime: Date;
-  lastActivity: Date;
+    startTime: Date;
+    lastActivity: Date;
 }

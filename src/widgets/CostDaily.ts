@@ -1,52 +1,55 @@
-import type { RenderContext } from "../types/RenderContext";
-import type { Settings } from "../types/Settings";
-import type { Widget, WidgetEditorDisplay, WidgetItem } from "../types/Widget";
-import { getCostAggregates, isCcusageAvailable } from "../utils/ccusage";
+import type { RenderContext } from '../types/RenderContext';
+import type { Settings } from '../types/Settings';
+import type {
+    Widget,
+    WidgetEditorDisplay,
+    WidgetItem
+} from '../types/Widget';
 
 export class CostDailyWidget implements Widget {
-  getDefaultColor(): string {
-    return "green";
-  }
-
-  getDescription(): string {
-    return "Shows today's total cost from ccusage";
-  }
-
-  getDisplayName(): string {
-    return "Cost (Daily)";
-  }
-
-  getEditorDisplay(item: WidgetItem): WidgetEditorDisplay {
-    return { displayText: this.getDisplayName() };
-  }
-
-  render(
-    item: WidgetItem,
-    context: RenderContext,
-    settings: Settings,
-  ): string | null {
-    if (context.isPreview) {
-      return item.rawValue ? "$12.34" : "Today: $12.34";
+    getDefaultColor(): string {
+        return 'green';
     }
 
-    if (!isCcusageAvailable()) {
-      return item.rawValue ? "N/A" : "Today: N/A";
+    getDescription(): string {
+        return 'Shows today\'s total cost from ccusage';
     }
 
-    const aggregates = getCostAggregates();
-    if (!aggregates) {
-      return item.rawValue ? "N/A" : "Today: N/A";
+    getDisplayName(): string {
+        return 'Cost (Daily)';
     }
 
-    const formatted = `$${aggregates.daily.toFixed(2)}`;
-    return item.rawValue ? formatted : `Today: ${formatted}`;
-  }
+    getEditorDisplay(item: WidgetItem): WidgetEditorDisplay {
+        return { displayText: this.getDisplayName() };
+    }
 
-  supportsRawValue(): boolean {
-    return true;
-  }
+    render(
+        item: WidgetItem,
+        context: RenderContext,
+        settings: Settings
+    ): string | null {
+        if (context.isPreview) {
+            return item.rawValue ? '$12.34' : 'Today: $12.34';
+        }
 
-  supportsColors(item: WidgetItem): boolean {
-    return true;
-  }
+        // Use pre-fetched data from context (lazy loaded)
+        const aggregates = context.costAggregates;
+        if (aggregates === undefined) {
+            return item.rawValue ? '--' : 'Today: --';
+        }
+        if (aggregates === null) {
+            return item.rawValue ? 'N/A' : 'Today: N/A';
+        }
+
+        const formatted = `$${aggregates.daily.toFixed(2)}`;
+        return item.rawValue ? formatted : `Today: ${formatted}`;
+    }
+
+    supportsRawValue(): boolean {
+        return true;
+    }
+
+    supportsColors(item: WidgetItem): boolean {
+        return true;
+    }
 }
