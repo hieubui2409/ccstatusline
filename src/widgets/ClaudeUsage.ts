@@ -7,21 +7,21 @@ import type {
     WidgetItem
 } from '../types/Widget';
 import {
-    getClaudeWebUsageSync,
+    getClaudeUsageSync,
     getTimeUntilReset,
-    isClaudeWebAvailable,
-    isSessionExpired
-} from '../utils/claude-web-api';
+    isClaudeUsageAvailable,
+    isTokenExpired
+} from '../utils/claude-usage-api';
 
 type DisplayMode = 'percentage' | 'time' | 'progress' | 'progress-short';
 
-export class ClaudeWebUsageWidget implements Widget {
+export class ClaudeUsageWidget implements Widget {
     getDefaultColor(): string {
         return 'magenta';
     }
 
     getDescription(): string {
-        return 'Shows Claude.ai 5-hour usage percentage (requires browser session)';
+        return 'Shows Claude 5-hour usage percentage (requires Claude Code login)';
     }
 
     getDisplayName(): string {
@@ -80,17 +80,17 @@ export class ClaudeWebUsageWidget implements Widget {
         }
 
         try {
-            if (!isClaudeWebAvailable()) {
-                return item.rawValue ? 'N/A' : 'Web: N/A';
+            if (!isClaudeUsageAvailable()) {
+                return item.rawValue ? 'N/A' : 'Usage: N/A';
             }
 
-            if (isSessionExpired()) {
-                return item.rawValue ? 'Expired' : 'Web: Expired';
+            if (isTokenExpired()) {
+                return item.rawValue ? 'Expired' : 'Usage: Expired';
             }
 
-            const usage = getClaudeWebUsageSync();
+            const usage = getClaudeUsageSync();
             if (!usage?.five_hour) {
-                return item.rawValue ? '--' : 'Web: --';
+                return item.rawValue ? '--' : 'Usage: --';
             }
 
             const pct = Math.round(usage.five_hour.utilization);
@@ -98,7 +98,7 @@ export class ClaudeWebUsageWidget implements Widget {
 
             return this.formatOutput(item, displayMode, pct, resetTime);
         } catch {
-            return item.rawValue ? '--' : 'Web: --';
+            return item.rawValue ? '--' : 'Usage: --';
         }
     }
 
@@ -108,7 +108,7 @@ export class ClaudeWebUsageWidget implements Widget {
         pct: number,
         resetTime: string | null
     ): string {
-        const prefix = item.rawValue ? '' : 'Web: ';
+        const prefix = item.rawValue ? '' : 'Usage: ';
 
         switch (displayMode) {
         case 'percentage':

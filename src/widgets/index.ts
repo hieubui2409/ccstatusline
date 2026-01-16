@@ -19,7 +19,7 @@ export { CustomCommandWidget } from './CustomCommand';
 export { BlockTimerWidget } from './BlockTimer';
 export { CurrentWorkingDirWidget } from './CurrentWorkingDir';
 export { ClaudeSessionIdWidget } from './ClaudeSessionId';
-export { ClaudeWebUsageWidget } from './ClaudeWebUsage';
+export { ClaudeUsageWidget } from './ClaudeUsage';
 export { CommitsWidget } from './Commits';
 export { SubmodulesWidget } from './Submodules';
 export { CostDailyWidget } from './CostDaily';

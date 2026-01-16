@@ -44,8 +44,8 @@ const widgetRegistry = new Map<WidgetItemType, Widget>([
     ['burn-rate', new widgets.BurnRateWidget()],
     ['block-projection', new widgets.BlockProjectionWidget()],
 
-    // Claude web & session widgets
-    ['claude-web-usage', new widgets.ClaudeWebUsageWidget()],
+    // Claude usage & session widgets
+    ['claude-web-usage', new widgets.ClaudeUsageWidget()],
     ['claude-session-id', new widgets.ClaudeSessionIdWidget()],
 
     // Environment widgets

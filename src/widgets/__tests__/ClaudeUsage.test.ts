@@ -10,33 +10,33 @@ import type {
     RenderContext,
     WidgetItem
 } from '../../types';
-import type { ClaudeWebUsageResponse } from '../../types/ClaudeWebApi';
+import type { ClaudeUsageResponse } from '../../types/ClaudeUsageApi';
 import { DEFAULT_SETTINGS } from '../../types/Settings';
 import {
-    getClaudeWebUsageSync,
+    getClaudeUsageSync,
     getTimeUntilReset,
-    isClaudeWebAvailable,
-    isSessionExpired
-} from '../../utils/claude-web-api';
-import { ClaudeWebUsageWidget } from '../ClaudeWebUsage';
+    isClaudeUsageAvailable,
+    isTokenExpired
+} from '../../utils/claude-usage-api';
+import { ClaudeUsageWidget } from '../ClaudeUsage';
 
-vi.mock('../../utils/claude-web-api', () => ({
-    isClaudeWebAvailable: vi.fn(),
-    isSessionExpired: vi.fn(),
-    getClaudeWebUsageSync: vi.fn(),
+vi.mock('../../utils/claude-usage-api', () => ({
+    isClaudeUsageAvailable: vi.fn(),
+    isTokenExpired: vi.fn(),
+    getClaudeUsageSync: vi.fn(),
     getTimeUntilReset: vi.fn()
 }));
 
-const mockedIsClaudeWebAvailable = isClaudeWebAvailable as ReturnType<
+const mockedIsClaudeUsageAvailable = isClaudeUsageAvailable as ReturnType<
   typeof vi.fn
 >;
-const mockedIsSessionExpired = isSessionExpired as ReturnType<typeof vi.fn>;
-const mockedGetClaudeWebUsageSync = getClaudeWebUsageSync as ReturnType<
+const mockedIsTokenExpired = isTokenExpired as ReturnType<typeof vi.fn>;
+const mockedGetClaudeUsageSync = getClaudeUsageSync as ReturnType<
   typeof vi.fn
 >;
 const mockedGetTimeUntilReset = getTimeUntilReset as ReturnType<typeof vi.fn>;
 
-function createUsageResponse(utilization: number): ClaudeWebUsageResponse {
+function createUsageResponse(utilization: number): ClaudeUsageResponse {
     return {
         five_hour: { utilization, resets_at: '2026-01-11T15:00:00Z' },
         seven_day: null,
@@ -48,14 +48,14 @@ function createUsageResponse(utilization: number): ClaudeWebUsageResponse {
     };
 }
 
-describe('ClaudeWebUsageWidget', () => {
+describe('ClaudeUsageWidget', () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
 
     describe('Preview mode', () => {
         it('should render preview with percentage mode (default)', () => {
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const context: RenderContext = { isPreview: true };
             const item: WidgetItem = {
                 id: 'claude-web-usage',
@@ -65,11 +65,11 @@ describe('ClaudeWebUsageWidget', () => {
 
             const result = widget.render(item, context, DEFAULT_SETTINGS);
 
-            expect(result).toBe('Web: 51%');
+            expect(result).toBe('Usage: 51%');
         });
 
         it('should render preview with time mode', () => {
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const context: RenderContext = { isPreview: true };
             const item: WidgetItem = {
                 id: 'claude-web-usage',
@@ -80,11 +80,11 @@ describe('ClaudeWebUsageWidget', () => {
 
             const result = widget.render(item, context, DEFAULT_SETTINGS);
 
-            expect(result).toBe('Web: 2h30m');
+            expect(result).toBe('Usage: 2h30m');
         });
 
         it('should render preview with progress bar mode', () => {
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const context: RenderContext = { isPreview: true };
             const item: WidgetItem = {
                 id: 'claude-web-usage',
@@ -95,11 +95,11 @@ describe('ClaudeWebUsageWidget', () => {
 
             const result = widget.render(item, context, DEFAULT_SETTINGS);
 
-            expect(result).toBe('Web: [████████████████░░░░░░░░░░░░░░░░] 51%');
+            expect(result).toBe('Usage: [████████████████░░░░░░░░░░░░░░░░] 51%');
         });
 
         it('should render preview with progress-short mode', () => {
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const context: RenderContext = { isPreview: true };
             const item: WidgetItem = {
                 id: 'claude-web-usage',
@@ -110,11 +110,11 @@ describe('ClaudeWebUsageWidget', () => {
 
             const result = widget.render(item, context, DEFAULT_SETTINGS);
 
-            expect(result).toBe('Web: [████████░░░░░░░░] 51%');
+            expect(result).toBe('Usage: [████████░░░░░░░░] 51%');
         });
 
         it('should render preview with raw value', () => {
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const context: RenderContext = { isPreview: true };
             const item: WidgetItem = {
                 id: 'claude-web-usage',
@@ -128,7 +128,7 @@ describe('ClaudeWebUsageWidget', () => {
         });
 
         it('should render preview time mode with raw value', () => {
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const context: RenderContext = { isPreview: true };
             const item: WidgetItem = {
                 id: 'claude-web-usage',
@@ -144,10 +144,10 @@ describe('ClaudeWebUsageWidget', () => {
     });
 
     describe('Availability checks', () => {
-        it('should return N/A when Claude web is not available', () => {
-            mockedIsClaudeWebAvailable.mockReturnValue(false);
+        it('should return N/A when Claude usage is not available', () => {
+            mockedIsClaudeUsageAvailable.mockReturnValue(false);
 
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const context: RenderContext = {};
             const item: WidgetItem = {
                 id: 'claude-web-usage',
@@ -157,14 +157,14 @@ describe('ClaudeWebUsageWidget', () => {
 
             const result = widget.render(item, context, DEFAULT_SETTINGS);
 
-            expect(result).toBe('Web: N/A');
+            expect(result).toBe('Usage: N/A');
         });
 
-        it('should return Expired when session is expired', () => {
-            mockedIsClaudeWebAvailable.mockReturnValue(true);
-            mockedIsSessionExpired.mockReturnValue(true);
+        it('should return Expired when token is expired', () => {
+            mockedIsClaudeUsageAvailable.mockReturnValue(true);
+            mockedIsTokenExpired.mockReturnValue(true);
 
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const context: RenderContext = {};
             const item: WidgetItem = {
                 id: 'claude-web-usage',
@@ -174,18 +174,18 @@ describe('ClaudeWebUsageWidget', () => {
 
             const result = widget.render(item, context, DEFAULT_SETTINGS);
 
-            expect(result).toBe('Web: Expired');
+            expect(result).toBe('Usage: Expired');
         });
     });
 
     describe('Live data rendering', () => {
         it('should render percentage mode', () => {
-            mockedIsClaudeWebAvailable.mockReturnValue(true);
-            mockedIsSessionExpired.mockReturnValue(false);
-            mockedGetClaudeWebUsageSync.mockReturnValue(createUsageResponse(75));
+            mockedIsClaudeUsageAvailable.mockReturnValue(true);
+            mockedIsTokenExpired.mockReturnValue(false);
+            mockedGetClaudeUsageSync.mockReturnValue(createUsageResponse(75));
             mockedGetTimeUntilReset.mockReturnValue('2h30m');
 
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const context: RenderContext = {};
             const item: WidgetItem = {
                 id: 'claude-web-usage',
@@ -195,16 +195,16 @@ describe('ClaudeWebUsageWidget', () => {
 
             const result = widget.render(item, context, DEFAULT_SETTINGS);
 
-            expect(result).toBe('Web: 75%');
+            expect(result).toBe('Usage: 75%');
         });
 
         it('should render time mode', () => {
-            mockedIsClaudeWebAvailable.mockReturnValue(true);
-            mockedIsSessionExpired.mockReturnValue(false);
-            mockedGetClaudeWebUsageSync.mockReturnValue(createUsageResponse(75));
+            mockedIsClaudeUsageAvailable.mockReturnValue(true);
+            mockedIsTokenExpired.mockReturnValue(false);
+            mockedGetClaudeUsageSync.mockReturnValue(createUsageResponse(75));
             mockedGetTimeUntilReset.mockReturnValue('2h30m');
 
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const context: RenderContext = {};
             const item: WidgetItem = {
                 id: 'claude-web-usage',
@@ -215,16 +215,16 @@ describe('ClaudeWebUsageWidget', () => {
 
             const result = widget.render(item, context, DEFAULT_SETTINGS);
 
-            expect(result).toBe('Web: 2h30m');
+            expect(result).toBe('Usage: 2h30m');
         });
 
         it('should render time mode with -- when no reset time', () => {
-            mockedIsClaudeWebAvailable.mockReturnValue(true);
-            mockedIsSessionExpired.mockReturnValue(false);
-            mockedGetClaudeWebUsageSync.mockReturnValue(createUsageResponse(75));
+            mockedIsClaudeUsageAvailable.mockReturnValue(true);
+            mockedIsTokenExpired.mockReturnValue(false);
+            mockedGetClaudeUsageSync.mockReturnValue(createUsageResponse(75));
             mockedGetTimeUntilReset.mockReturnValue(null);
 
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const context: RenderContext = {};
             const item: WidgetItem = {
                 id: 'claude-web-usage',
@@ -235,16 +235,16 @@ describe('ClaudeWebUsageWidget', () => {
 
             const result = widget.render(item, context, DEFAULT_SETTINGS);
 
-            expect(result).toBe('Web: --');
+            expect(result).toBe('Usage: --');
         });
 
         it('should render progress bar mode', () => {
-            mockedIsClaudeWebAvailable.mockReturnValue(true);
-            mockedIsSessionExpired.mockReturnValue(false);
-            mockedGetClaudeWebUsageSync.mockReturnValue(createUsageResponse(75));
+            mockedIsClaudeUsageAvailable.mockReturnValue(true);
+            mockedIsTokenExpired.mockReturnValue(false);
+            mockedGetClaudeUsageSync.mockReturnValue(createUsageResponse(75));
             mockedGetTimeUntilReset.mockReturnValue('2h30m');
 
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const context: RenderContext = {};
             const item: WidgetItem = {
                 id: 'claude-web-usage',
@@ -255,17 +255,17 @@ describe('ClaudeWebUsageWidget', () => {
 
             const result = widget.render(item, context, DEFAULT_SETTINGS);
 
-            expect(result).toBe('Web: [████████████████████████░░░░░░░░] 75%');
+            expect(result).toBe('Usage: [████████████████████████░░░░░░░░] 75%');
         });
     });
 
     describe('No cached data', () => {
         it('should return -- when no cached data', () => {
-            mockedIsClaudeWebAvailable.mockReturnValue(true);
-            mockedIsSessionExpired.mockReturnValue(false);
-            mockedGetClaudeWebUsageSync.mockReturnValue(null);
+            mockedIsClaudeUsageAvailable.mockReturnValue(true);
+            mockedIsTokenExpired.mockReturnValue(false);
+            mockedGetClaudeUsageSync.mockReturnValue(null);
 
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const context: RenderContext = {};
             const item: WidgetItem = {
                 id: 'claude-web-usage',
@@ -275,13 +275,13 @@ describe('ClaudeWebUsageWidget', () => {
 
             const result = widget.render(item, context, DEFAULT_SETTINGS);
 
-            expect(result).toBe('Web: --');
+            expect(result).toBe('Usage: --');
         });
     });
 
     describe('Editor actions', () => {
         it('should toggle from percentage to time mode', () => {
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const item: WidgetItem = {
                 id: 'claude-web-usage',
                 type: 'claude-web-usage'
@@ -293,7 +293,7 @@ describe('ClaudeWebUsageWidget', () => {
         });
 
         it('should toggle from time to progress mode', () => {
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const item: WidgetItem = {
                 id: 'claude-web-usage',
                 type: 'claude-web-usage',
@@ -306,7 +306,7 @@ describe('ClaudeWebUsageWidget', () => {
         });
 
         it('should toggle from progress to progress-short mode', () => {
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const item: WidgetItem = {
                 id: 'claude-web-usage',
                 type: 'claude-web-usage',
@@ -319,7 +319,7 @@ describe('ClaudeWebUsageWidget', () => {
         });
 
         it('should toggle from progress-short to percentage mode', () => {
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const item: WidgetItem = {
                 id: 'claude-web-usage',
                 type: 'claude-web-usage',
@@ -334,13 +334,13 @@ describe('ClaudeWebUsageWidget', () => {
 
     describe('Metadata', () => {
         it('should have correct display name', () => {
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
 
             expect(widget.getDisplayName()).toBe('Claude.ai Usage');
         });
 
         it('should have mode toggle keybind', () => {
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const keybinds = widget.getCustomKeybinds();
 
             expect(keybinds).toHaveLength(1);
@@ -349,7 +349,7 @@ describe('ClaudeWebUsageWidget', () => {
         });
 
         it('should show mode in editor display', () => {
-            const widget = new ClaudeWebUsageWidget();
+            const widget = new ClaudeUsageWidget();
             const item: WidgetItem = {
                 id: 'claude-web-usage',
                 type: 'claude-web-usage',

@@ -18,12 +18,7 @@ export type { PowerlineFontStatus } from './PowerlineFontStatus';
 export type { ClaudeSettings } from './ClaudeSettings';
 export type { ColorEntry } from './ColorEntry';
 export type { BlockMetrics } from './BlockMetrics';
-export type {
-    ClaudeOrganization,
-    ClaudeWebConfig,
-    ClaudeWebUsageResponse,
-    ExtractedSession
-} from './ClaudeWebApi';
+export type { ClaudeUsageResponse } from './ClaudeUsageApi';
 export type {
     ActiveBlockData,
     BlockEntry,
